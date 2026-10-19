@@ -33,8 +33,8 @@ the `claude` command-line tool must be signed in once:
 
 1. Click **Sign in via Terminal** in the dropdown (or run `claude` yourself).
 2. Type `/login`, press Return, finish in the browser.
-3. Back in the menu bar, click **Refresh (3min)**. If macOS asks to allow Keychain
-   access, click **Always Allow**.
+3. Back in the menu bar, click **Refresh (3min)**. (In the unlikely event macOS
+   asks to allow Keychain access, click **Always Allow**.)
 
 **Keep it running on its own.** An app launched from inside a Claude Desktop
 session (for example by Claude running `./build.sh run` for you) belongs to that
@@ -63,8 +63,8 @@ pkill -f ClaudeStatus.app/Contents/MacOS/ClaudeStatus; ./build.sh run
 
 - A typo shows up as a compiler error with the file and line; the app is not
   rebuilt until it compiles.
-- Every rebuild gets a new ad-hoc signature, so macOS asks once more to allow
-  Keychain access. Click **Always Allow**.
+- The Keychain is read through `/usr/bin/security`, so a rebuild normally
+  causes no permission dialog. If one appears anyway, click **Always Allow**.
 - Happy with the result? Install the permanent copy (also replaces an older
   one in /Applications):
 
@@ -174,12 +174,16 @@ claude
 
 Type `/login` and finish in the browser. On macOS the token lands in the login
 Keychain (item **Claude Code-credentials**); on Linux in
-`~/.claude/.credentials.json`. The app reads the file first, then the Keychain,
-and the dropdown has a **Sign in via Terminal** button that opens `claude` for
+`~/.claude/.credentials.json`. The app reads the file first, then the Keychain
+(via `/usr/bin/security`, the tool Claude Code stores it with, so no permission
+dialog), and the dropdown has a **Sign in via Terminal** button that opens `claude` for
 you whenever a sign-in is needed.
 
 When the token expires, start Claude Code again (it refreshes the token), then
-click **Refresh (3min)**.
+click **Refresh (3min)**. If the dropdown says *Claude Code is signed out*, the
+Keychain entry exists but holds no token (after `/logout` or a failed refresh):
+run `claude` in Terminal and `/login` again. The last failure reason is also
+written to `~/Library/Caches/ClaudeStatus/last-error.txt`.
 
 ## 9. Build and run
 
@@ -188,8 +192,9 @@ click **Refresh (3min)**.
    gauges. The first fetch happens immediately; then every 3 minutes.
 3. Click the label to open the dropdown: a block gauge per limit, reset times
    (live countdown), last-updated stamp, **Refresh (3min)** (⌘R) and **Quit** (⌘Q).
-4. If the Keychain fallback is used, macOS asks once for permission to read the
-   *Claude Code-credentials* item — click **Always Allow**.
+4. Keychain access needs no dialog. If the dropdown ever says "macOS refused
+   access to the Claude Code login", open Keychain Access ▸ login ▸
+   *Claude Code-credentials* ▸ Access Control and allow ClaudeStatus.
 
 ## 10. Launch at login (optional)
 

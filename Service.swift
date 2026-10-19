@@ -9,6 +9,7 @@
 import Foundation
 import Security
 import ServiceManagement
+import os
 
 // MARK: - Constants
 
@@ -83,6 +84,7 @@ struct UsageSnapshot: @unchecked Sendable, Equatable {
 
 enum UsageError: LocalizedError, Equatable {
     case credentialsNotFound(path: String)
+    case keychainDenied(OSStatus)
     case tokenMissing
     case tokenExpired(Date)
     case unauthorized
@@ -95,8 +97,11 @@ enum UsageError: LocalizedError, Equatable {
         switch self {
         case .credentialsNotFound:
             return "Not signed in to Claude Code."
+        case .keychainDenied(let status):
+            let reason = SecCopyErrorMessageString(status, nil).map { String($0) } ?? "error \(status)"
+            return "macOS refused access to the Claude Code login in your Keychain (\(reason), \(status))."
         case .tokenMissing:
-            return "Credentials file has no OAuth access token."
+            return "Claude Code is signed out: its stored login has no access token."
         case .tokenExpired(let date):
             let f = DateFormatter()
             f.dateStyle = .short
@@ -125,8 +130,12 @@ enum UsageError: LocalizedError, Equatable {
 
     var recoverySuggestion: String? {
         switch self {
-        case .credentialsNotFound, .tokenMissing:
+        case .credentialsNotFound:
             return "Claude Desktop's login isn't shared with other apps. Sign in the claude command-line tool once: click “Sign in via Terminal”, type /login, finish in the browser, then click Refresh (3min)."
+        case .tokenMissing:
+            return "This happens after /logout or when Claude Code could not refresh its token. Click “Sign in via Terminal”, type /login, finish in the browser, then click Refresh (3min)."
+        case .keychainDenied:
+            return "Open Keychain Access, find “Claude Code-credentials” in the login keychain, and under Access Control allow ClaudeStatus (or “all applications”). Or run /login in Claude Code again, which rewrites the item. Then click Refresh (3min)."
         case .tokenExpired, .unauthorized:
             return "Click “Sign in via Terminal” (Claude Code refreshes the token when it starts), then click Refresh (3min)."
         case .rateLimited:
@@ -142,10 +151,13 @@ enum UsageError: LocalizedError, Equatable {
 /// Reads the Claude Code OAuth token. Nothing to configure: it uses whatever
 /// login Claude Code (including the one inside Claude Desktop) already has.
 ///
-/// 1. `~/.claude/.credentials.json` if it exists.
-/// 2. Otherwise the login Keychain item "Claude Code-credentials", which is
-///    where Claude Code stores the same JSON on macOS. macOS asks once to allow
-///    access; choose "Always Allow".
+/// 1. `~/.claude/.credentials.json` if it exists (Linux, older Claude Code).
+/// 2. Otherwise the login Keychain item "Claude Code-credentials", where
+///    Claude Code stores the same JSON on macOS. It is read with the
+///    `/usr/bin/security` tool, which is what Claude Code itself writes the
+///    item with, so it is already on the item's access list and macOS shows
+///    no permission dialog. If that fails, the Security framework is tried
+///    directly (macOS asks once; choose "Always Allow").
 ///
 /// If the file's token has expired but the Keychain has a fresh one, the
 /// Keychain wins, because Claude Code refreshes the Keychain copy.
@@ -165,11 +177,21 @@ enum CredentialsStore {
         let claudeAiOauth: OAuth?
     }
 
+    /// Outcome of looking for the Keychain item.
+    private enum KeychainRead {
+        case found(Data)
+        case notFound
+        case denied(OSStatus)
+    }
+
+    /// Blocking; call off the main thread (it may spawn `security`).
     static func loadToken() throws -> Token {
         let fileToken = FileManager.default.contents(atPath: Config.credentialsPath).flatMap { try? parse($0) }
         if let fileToken, !fileToken.isExpired { return fileToken }
 
-        let keychainToken = readKeychain(service: Config.keychainService).flatMap { try? parse($0) }
+        let keychain = readKeychain(service: Config.keychainService)
+        var keychainToken: Token?
+        if case .found(let data) = keychain { keychainToken = try? parse(data) }
         if let keychainToken, !keychainToken.isExpired { return keychainToken }
 
         if let expired = fileToken?.expiresAt ?? keychainToken?.expiresAt {
@@ -178,7 +200,11 @@ enum CredentialsStore {
         if FileManager.default.fileExists(atPath: Config.credentialsPath) {
             throw UsageError.tokenMissing
         }
-        throw UsageError.credentialsNotFound(path: "~/.claude/.credentials.json")
+        switch keychain {
+        case .found: throw UsageError.tokenMissing
+        case .denied(let status): throw UsageError.keychainDenied(status)
+        case .notFound: throw UsageError.credentialsNotFound(path: "~/.claude/.credentials.json")
+        }
     }
 
     private static func parse(_ data: Data) throws -> Token {
@@ -190,7 +216,66 @@ enum CredentialsStore {
         return Token(accessToken: token, expiresAt: expiresAt)
     }
 
-    private static func readKeychain(service: String) -> Data? {
+    private static func readKeychain(service: String) -> KeychainRead {
+        if let data = readKeychainWithSecurityTool(service: service) {
+            return .found(data)
+        }
+        return readKeychainDirectly(service: service)
+    }
+
+    /// `security find-generic-password -s <service> -w`, the same tool Claude
+    /// Code uses to store the item, so it is trusted by the item's ACL.
+    private static func readKeychainWithSecurityTool(service: String) -> Data? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", service, "-w"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+
+        // Read on a helper thread so a stuck tool (e.g. an unexpected dialog)
+        // can be killed instead of hanging the app.
+        final class Box: @unchecked Sendable { var data = Data() }
+        let box = Box()
+        let finished = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            box.data = stdout.fileHandleForReading.readDataToEndOfFile()
+            finished.signal()
+        }
+        if finished.wait(timeout: .now() + .seconds(10)) == .timedOut {
+            process.terminate()
+            return nil
+        }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let text = String(data: box.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return nil }
+
+        // `security -w` prints hex when the secret contains non-printable bytes.
+        if text.hasPrefix("{") { return Data(text.utf8) }
+        if let bytes = decodeHex(text) { return bytes }
+        return Data(text.utf8)
+    }
+
+    private static func decodeHex(_ text: String) -> Data? {
+        guard text.count % 2 == 0, text.allSatisfy({ $0.isHexDigit }) else { return nil }
+        var data = Data(capacity: text.count / 2)
+        var index = text.startIndex
+        while index < text.endIndex {
+            let next = text.index(index, offsetBy: 2)
+            guard let byte = UInt8(text[index..<next], radix: 16) else { return nil }
+            data.append(byte)
+            index = next
+        }
+        return data
+    }
+
+    /// Security framework lookup. macOS ties the "Always Allow" grant to the
+    /// app's code signature, so ad-hoc builds get asked again after a rebuild,
+    /// and a dismissed or denied dialog comes back as a non-success status.
+    private static func readKeychainDirectly(service: String) -> KeychainRead {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
@@ -198,8 +283,16 @@ enum CredentialsStore {
             kSecMatchLimit: kSecMatchLimitOne,
         ]
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
-        return item as? Data
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        switch status {
+        case errSecSuccess:
+            if let data = item as? Data { return .found(data) }
+            return .notFound
+        case errSecItemNotFound:
+            return .notFound
+        default:
+            return .denied(status)
+        }
     }
 }
 
@@ -369,6 +462,8 @@ final class UsageService: ObservableObject {
     static let refreshInterval: Duration = Config.refreshInterval
 
     private var loop: Task<Void, Never>?
+    /// `log show --predicate 'subsystem == "local.claudestatus"' --last 10m`
+    private static let log = Logger(subsystem: "local.claudestatus", category: "usage")
 
     init(autoStart: Bool = true) {
         if autoStart { start() }
@@ -405,6 +500,23 @@ final class UsageService: ObservableObject {
         try? json.write(to: url, atomically: true, encoding: .utf8)
     }
 
+    /// `~/Library/Caches/ClaudeStatus/last-error.txt` — the most recent
+    /// failure (message only, never the token). Removed on the next success.
+    static var lastErrorURL: URL {
+        lastResponseURL.deletingLastPathComponent().appendingPathComponent("last-error.txt")
+    }
+
+    private static func saveLastError(_ message: String?) {
+        let url = lastErrorURL
+        guard let message else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        try? "\(stamp) \(message)\n".write(to: url, atomically: true, encoding: .utf8)
+    }
+
     /// Fetches usage once. Safe to call from the "Refresh (3min)" button.
     func refresh() async {
         if isRefreshing { return }
@@ -412,16 +524,24 @@ final class UsageService: ObservableObject {
         defer { isRefreshing = false }
 
         do {
-            let token = try CredentialsStore.loadToken()
+            let token = try await Task.detached(priority: .userInitiated) {
+                try CredentialsStore.loadToken()
+            }.value
             let result = try await UsageAPI.fetch(token: token.accessToken)
             snapshot = result
             error = nil
             lastUpdated = result.fetchedAt
             Self.saveLastResponse(result.rawJSON)
+            Self.saveLastError(nil)
+            Self.log.info("refresh ok: 5h \(result.fiveHour.percent)% W \(result.sevenDay.percent)% F \(result.fable.percent)%")
         } catch let e as UsageError {
             error = e
+            Self.saveLastError(e.errorDescription)
+            Self.log.error("refresh failed: \(e.errorDescription ?? "unknown", privacy: .public)")
         } catch {
             self.error = .network(error.localizedDescription)
+            Self.saveLastError(error.localizedDescription)
+            Self.log.error("refresh failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

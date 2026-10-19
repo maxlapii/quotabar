@@ -78,8 +78,10 @@ the previous ones. Open the dropdown for the reason and a one-click fix.
 
 1. `Service.swift` loads the OAuth token that the `claude` CLI stored, either
    from `~/.claude/.credentials.json` or from the login Keychain item
-   `Claude Code-credentials`. If the file copy has expired and the Keychain has
-   a fresh one, the Keychain wins.
+   `Claude Code-credentials`. The Keychain item is read with the same
+   `/usr/bin/security` tool Claude Code writes it with, so macOS shows no
+   permission dialog. If the file copy has expired and the Keychain has a
+   fresh one, the Keychain wins.
 2. It calls `GET https://api.anthropic.com/api/oauth/usage` with that token and
    the `anthropic-beta: oauth-2025-04-20` header, then decodes the response
    generically so new or renamed limits still appear.
@@ -123,9 +125,25 @@ No. Claude Desktop keeps its login private to its own process. The `claude`
 CLI must be signed in once; the dropdown's **Sign in via Terminal** button
 opens it for you. Both use the same account, so the numbers match.
 
-**Why does macOS ask for Keychain access again after I rebuild?**  
-Local builds are ad-hoc signed, and the permission is tied to the exact
-signature. Install once with `./build.sh install` and the prompt stops.
+**Why does macOS ask for Keychain access?**  
+Normally it doesn't: the app reads the item through `/usr/bin/security`,
+which is already allowed. The dialog only appears if that path fails and the
+app falls back to the Security framework; there the grant is tied to the
+exact ad-hoc signature, so a rebuilt app asks again. If you ever clicked
+**Deny**, the dropdown now says so ("macOS refused access …") instead of
+"Not signed in", and tells you how to fix it in Keychain Access.
+
+**It says "Claude Code is signed out" although I use Claude every day.**  
+Claude Desktop's Code tab signs in with its own token and does not store it
+for other apps; the entry the `claude` command-line tool keeps in the login
+Keychain can still be empty (after `/logout`, or when a token refresh failed).
+Run `claude` in Terminal, type `/login`, finish in the browser, then click
+**Refresh (3min)**.
+
+**Where can I see why the last refresh failed?**  
+`~/Library/Caches/ClaudeStatus/last-error.txt` holds the last error message
+(never the token) and is deleted on the next successful fetch;
+`last-usage.json` next to it is the last successful response.
 
 **Can I redistribute the built app?**  
 Not as-is. Ad-hoc signed apps are blocked by Gatekeeper on other Macs. Point
