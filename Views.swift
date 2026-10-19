@@ -12,11 +12,12 @@ import AppKit
 
 /// The compact label shown in the menu bar:
 ///
-///     [Claude icon] 0% ▯▯▯▯▯  W 64% ▮▮▮▯▯  F 80% ▮▮▮▮▯
+///     [Claude icon] 09% ▯▯▯▯▯ | W 64% | F 80%
 ///
+/// The 5-hour window keeps its block gauge; the weekly (W) and Fable (F)
+/// percentages are tinted green / orange / red instead of having gauges.
 /// Rounded system font, monospaced digits, tight spacing. Rendered to an image
-/// with AppKit because MenuBarExtra flattens SwiftUI text colours in labels;
-/// this way each gauge keeps its green / orange / red tint.
+/// with AppKit because MenuBarExtra flattens SwiftUI text colours in labels.
 struct StatusLabelView: View {
     let snapshot: UsageSnapshot?
     let hasError: Bool
@@ -98,21 +99,29 @@ enum LabelRenderer {
         }
 
         let label = NSColor.labelColor
+        let separator = NSColor.tertiaryLabelColor
         if let s = snapshot {
-            let segments: [(String, UsageBucket)] = [(" ", s.fiveHour), ("W", s.sevenDay), ("F", s.fable)]
-            for (i, (tag, bucket)) in segments.enumerated() {
-                if i > 0 { append("  ", label) }
-                append("\(tag) \(bucket.percent)% ", label)
-                append(bucket.blocks, Level.nsColor(bucket.utilization), kern: 0.3)
+            // Percentages are zero-padded to two digits ("09%") so the label
+            // keeps a stable width.
+            func pct(_ b: UsageBucket) -> String { String(format: "%02d%%", b.percent) }
+            // 5h: percentage + block gauge, tinted by level.
+            append("\(pct(s.fiveHour)) ", label)
+            append(s.fiveHour.blocks, Level.nsColor(s.fiveHour.utilization), kern: 0.3)
+            // W and F: tag + percentage, the percentage tinted by level.
+            for (tag, bucket) in [("W", s.sevenDay), ("F", s.fable)] {
+                append(" | ", separator)
+                append("\(tag) ", label)
+                append(pct(bucket), Level.nsColor(bucket.utilization))
             }
         } else {
-            for (i, tag) in [" ", "W", "F"].enumerated() {
-                if i > 0 { append("  ", label) }
-                append("\(tag) –% ", .secondaryLabelColor)
-                append("▯▯▯▯▯", .tertiaryLabelColor, kern: 0.3)
+            append("–% ", .secondaryLabelColor)
+            append("▯▯▯▯▯", .tertiaryLabelColor, kern: 0.3)
+            for tag in ["W", "F"] {
+                append(" | ", separator)
+                append("\(tag) –%", .secondaryLabelColor)
             }
         }
-        if hasError { append("⚠︎", .systemYellow) }
+        if hasError { append(" ⚠︎", .systemYellow) }
         return result
     }
 }

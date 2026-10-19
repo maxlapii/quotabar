@@ -3,7 +3,7 @@
 A macOS menu bar extra that shows your Claude Code usage limits:
 
 ```
-[Claude icon] 5h 0% ▯▯▯▯▯  W 64% ▮▮▮▯▯  F 80% ▮▮▮▮▯
+[Claude icon] 09% ▯▯▯▯▯ | W 64% | F 80%
 ```
 
 | Label | Source field                     | Meaning                                   |
@@ -210,7 +210,7 @@ written to `~/Library/Caches/ClaudeStatus/last-error.txt`.
 
 | Symptom                                                        | Fix |
 |----------------------------------------------------------------|-----|
-| Label shows `5h –% ▯▯▯▯▯ … ⚠︎`                                  | Open the dropdown — the yellow banner names the problem. |
+| Label shows `–% ▯▯▯▯▯ | W –% | F –% ⚠︎`                          | Open the dropdown — the yellow banner names the problem. |
 | "Not signed in to Claude Code"                                 | Click **Sign in via Terminal**, type `/login`. Claude Desktop's login is not shared. If the sandbox is on, disable it (step 6). |
 | "OAuth token expired" / "rejected the token (401)"             | Run any `claude` command to refresh the token, then click **Refresh (3min)**. |
 | "Unexpected response format" or a gauge looks wrong             | The unofficial endpoint changed. The last raw response (usage numbers only, no token) is saved at `~/Library/Caches/ClaudeStatus/last-usage.json`; compare it with `UsageAPI.parse` in Service.swift. |
