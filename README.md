@@ -145,6 +145,11 @@ Run `claude` in Terminal, type `/login`, finish in the browser, then click
 (never the token) and is deleted on the next successful fetch;
 `last-usage.json` next to it is the last successful response.
 
+**`./build.sh install` says "Permission denied" on /Applications.**  
+Your account is not an administrator. The script then installs to
+`~/Applications` instead, which needs no extra rights and works with
+launch-at-login.
+
 **Can I redistribute the built app?**  
 Not as-is. Ad-hoc signed apps are blocked by Gatekeeper on other Macs. Point
 people at `./build.sh run`, or notarise your own build.

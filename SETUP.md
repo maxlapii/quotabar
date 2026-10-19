@@ -65,8 +65,8 @@ pkill -f ClaudeStatus.app/Contents/MacOS/ClaudeStatus; ./build.sh run
   rebuilt until it compiles.
 - The Keychain is read through `/usr/bin/security`, so a rebuild normally
   causes no permission dialog. If one appears anyway, click **Always Allow**.
-- Happy with the result? Install the permanent copy (also replaces an older
-  one in /Applications):
+- Happy with the result? Install the permanent copy (into /Applications, or
+  `~/Applications` when your account is not an administrator):
 
 ```bash
 ./build.sh install

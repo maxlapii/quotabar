@@ -3,7 +3,7 @@
 #
 #   ./build.sh          build into build/ClaudeStatus.app
 #   ./build.sh run      build, then launch it
-#   ./build.sh install  build, copy to /Applications, launch
+#   ./build.sh install  build, copy to /Applications (or ~/Applications), launch
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -56,8 +56,15 @@ case "${1:-}" in
   run)
     open "$OUT" ;;
   install)
-    rm -rf "/Applications/$APP.app"
-    cp -R "$OUT" /Applications/
-    open "/Applications/$APP.app"
-    echo "Installed /Applications/$APP.app" ;;
+    # /Applications needs an admin account; everyone can use ~/Applications.
+    DEST=/Applications
+    if ! { mkdir "$DEST/.$APP-write-test" 2>/dev/null && rmdir "$DEST/.$APP-write-test"; }; then
+      DEST="$HOME/Applications"
+      mkdir -p "$DEST"
+    fi
+    pkill -f "$APP.app/Contents/MacOS/$APP" 2>/dev/null || true
+    rm -rf "$DEST/$APP.app"
+    cp -R "$OUT" "$DEST/"
+    open "$DEST/$APP.app"
+    echo "Installed $DEST/$APP.app" ;;
 esac
