@@ -21,7 +21,7 @@ enum Config {
     /// Keychain item Claude Code writes on macOS (same JSON as the file).
     static let keychainService = "Claude Code-credentials"
     /// Auto-refresh cadence.
-    static let refreshInterval: Duration = .seconds(180)
+    static let refreshInterval: Duration = .seconds(900)
 
     /// `~/.claude/.credentials.json`, using the real home even when sandboxed.
     static var credentialsPath: String {
@@ -131,13 +131,13 @@ enum UsageError: LocalizedError, Equatable {
     var recoverySuggestion: String? {
         switch self {
         case .credentialsNotFound:
-            return "Claude Desktop's login isn't shared with other apps. Sign in the claude command-line tool once: click “Sign in via Terminal”, type /login, finish in the browser, then click Refresh (3min)."
+            return "Claude Desktop's login isn't shared with other apps. Sign in the claude command-line tool once: click “Sign in via Terminal”, type /login, finish in the browser, then click Refresh (15min)."
         case .tokenMissing:
-            return "This happens after /logout or when Claude Code could not refresh its token. Click “Sign in via Terminal”, type /login, finish in the browser, then click Refresh (3min)."
+            return "This happens after /logout or when Claude Code could not refresh its token. Click “Sign in via Terminal”, type /login, finish in the browser, then click Refresh (15min)."
         case .keychainDenied:
-            return "Open Keychain Access, find “Claude Code-credentials” in the login keychain, and under Access Control allow ClaudeStatus (or “all applications”). Or run /login in Claude Code again, which rewrites the item. Then click Refresh (3min)."
+            return "Open Keychain Access, find “Claude Code-credentials” in the login keychain, and under Access Control allow ClaudeStatus (or “all applications”). Or run /login in Claude Code again, which rewrites the item. Then click Refresh (15min)."
         case .tokenExpired, .unauthorized:
-            return "Click “Sign in via Terminal” (Claude Code refreshes the token when it starts), then click Refresh (3min)."
+            return "Click “Sign in via Terminal” (Claude Code refreshes the token when it starts), then click Refresh (15min)."
         case .rateLimited:
             return "Wait a minute and try again."
         case .badStatus, .network, .decoding:
@@ -517,7 +517,7 @@ final class UsageService: ObservableObject {
         try? "\(stamp) \(message)\n".write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// Fetches usage once. Safe to call from the "Refresh (3min)" button.
+    /// Fetches usage once. Safe to call from the "Refresh (15min)" button.
     func refresh() async {
         if isRefreshing { return }
         isRefreshing = true

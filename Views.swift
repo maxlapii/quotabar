@@ -237,12 +237,12 @@ struct StatusMenuView: View {
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
-                    Text("Refresh (3min)")
+                    Text("Refresh (15min)")
                 }
             }
             .disabled(service.isRefreshing)
             .keyboardShortcut("r", modifiers: .command)
-            .help("Refresh now. Usage also refreshes automatically every 3 minutes.")
+            .help("Refresh now. Usage also refreshes automatically every 15 minutes.")
 
             Spacer()
 
@@ -427,7 +427,7 @@ enum SignInHelper {
         clear
         echo "ClaudeStatus: sign in to Claude Code."
         echo "When Claude Code opens, type  /login  and press Return, then finish in the browser."
-        echo "Afterwards you can close this window and click Refresh (3min) in the menu bar."
+        echo "Afterwards you can close this window and click Refresh (15min) in the menu bar."
         echo
         if command -v claude >/dev/null 2>&1; then
           exec claude

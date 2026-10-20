@@ -33,7 +33,7 @@ the `claude` command-line tool must be signed in once:
 
 1. Click **Sign in via Terminal** in the dropdown (or run `claude` yourself).
 2. Type `/login`, press Return, finish in the browser.
-3. Back in the menu bar, click **Refresh (3min)**. (In the unlikely event macOS
+3. Back in the menu bar, click **Refresh (15min)**. (In the unlikely event macOS
    asks to allow Keychain access, click **Always Allow**.)
 
 **Keep it running on its own.** An app launched from inside a Claude Desktop
@@ -180,7 +180,7 @@ dialog), and the dropdown has a **Sign in via Terminal** button that opens `clau
 you whenever a sign-in is needed.
 
 When the token expires, start Claude Code again (it refreshes the token), then
-click **Refresh (3min)**. If the dropdown says *Claude Code is signed out*, the
+click **Refresh (15min)**. If the dropdown says *Claude Code is signed out*, the
 Keychain entry exists but holds no token (after `/logout` or a failed refresh):
 run `claude` in Terminal and `/login` again. The last failure reason is also
 written to `~/Library/Caches/ClaudeStatus/last-error.txt`.
@@ -189,9 +189,9 @@ written to `~/Library/Caches/ClaudeStatus/last-error.txt`.
 
 1. Select the **My Mac** destination and press **⌘R**.
 2. Look at the top-right of the menu bar for the Claude icon and the three
-   gauges. The first fetch happens immediately; then every 3 minutes.
+   gauges. The first fetch happens immediately; then every 15 minutes.
 3. Click the label to open the dropdown: a block gauge per limit, reset times
-   (live countdown), last-updated stamp, **Refresh (3min)** (⌘R) and **Quit** (⌘Q).
+   (live countdown), last-updated stamp, **Refresh (15min)** (⌘R) and **Quit** (⌘Q).
 4. Keychain access needs no dialog. If the dropdown ever says "macOS refused
    access to the Claude Code login", open Keychain Access ▸ login ▸
    *Claude Code-credentials* ▸ Access Control and allow ClaudeStatus.
@@ -212,7 +212,7 @@ written to `~/Library/Caches/ClaudeStatus/last-error.txt`.
 |----------------------------------------------------------------|-----|
 | Label shows `–% ▯▯▯▯▯ | W –% | F –% ⚠︎`                          | Open the dropdown — the yellow banner names the problem. |
 | "Not signed in to Claude Code"                                 | Click **Sign in via Terminal**, type `/login`. Claude Desktop's login is not shared. If the sandbox is on, disable it (step 6). |
-| "OAuth token expired" / "rejected the token (401)"             | Run any `claude` command to refresh the token, then click **Refresh (3min)**. |
+| "OAuth token expired" / "rejected the token (401)"             | Run any `claude` command to refresh the token, then click **Refresh (15min)**. |
 | "Unexpected response format" or a gauge looks wrong             | The unofficial endpoint changed. The last raw response (usage numbers only, no token) is saved at `~/Library/Caches/ClaudeStatus/last-usage.json`; compare it with `UsageAPI.parse` in Service.swift. |
 | App shows in the Dock                                          | Re-check `LSUIElement = YES` (step 5) and clean build (⇧⌘K). |
 | App quits whenever Claude Desktop quits                        | It was launched from a Claude session. Launch it yourself from `/Applications` (or tick **Launch at login**). |

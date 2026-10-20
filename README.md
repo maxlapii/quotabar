@@ -22,7 +22,7 @@
 Claude's rate limits are invisible until you hit one. The usage page lives in a
 browser tab, and by the time you open it the session is already locked. 
 ClaudeStatus moves those three numbers into the menu bar, colour-coded and
-refreshed every three minutes, so you can pace a long task, decide whether to
+refreshed every 15 minutes, so you can pace a long task, decide whether to
 start another, or simply know when the window resets.
 
 <p align="center">
@@ -37,7 +37,7 @@ start another, or simply know when the window resets.
   at 80 %, so a glance is enough. No reading required.
 - **Reset times you can plan around.** Live countdowns such as
   "Resets in 4 h 34 min · 3:10 AM" for each limit.
-- **Zero maintenance.** Auto-refresh every three minutes, manual refresh on
+- **Zero maintenance.** Auto-refresh every 15 minutes, manual refresh on
   demand, launch at login with one checkbox.
 - **Feels like part of macOS.** Menu bar only, no Dock icon, SF Rounded
   typography, adapts to light and dark menu bars.
@@ -52,7 +52,7 @@ git clone <this repo> && cd ClaudeStatus
 ```
 
 Sign in the `claude` command-line tool once (`claude`, then `/login`), click
-**Refresh (3min)**, and the gauges fill in. When you are happy, run
+**Refresh (15min)**, and the gauges fill in. When you are happy, run
 `./build.sh install` and tick **Launch at login** in the dropdown.
 
 Full instructions, the Xcode route, and troubleshooting are in
@@ -88,7 +88,7 @@ the previous ones. Open the dropdown for the reason and a one-click fix.
 3. `Views.swift` renders the menu bar label as a single AppKit image (the only
    way to keep per-gauge colour in a `MenuBarExtra`) and draws the dropdown in
    SwiftUI.
-4. A background task repeats step 2 every three minutes; the dropdown's
+4. A background task repeats step 2 every 15 minutes; the dropdown's
    countdowns tick independently every 30 seconds.
 
 The token lives in memory for the duration of a request and is never written
@@ -138,7 +138,7 @@ Claude Desktop's Code tab signs in with its own token and does not store it
 for other apps; the entry the `claude` command-line tool keeps in the login
 Keychain can still be empty (after `/logout`, or when a token refresh failed).
 Run `claude` in Terminal, type `/login`, finish in the browser, then click
-**Refresh (3min)**.
+**Refresh (15min)**.
 
 **Where can I see why the last refresh failed?**  
 `~/Library/Caches/ClaudeStatus/last-error.txt` holds the last error message
